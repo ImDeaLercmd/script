@@ -1,344 +1,4 @@
--- ════════════════════════════════════════════════════════════════════
--- 🔄 СИСТЕМА АВТООБНОВЛЕНИЯ ДЛЯ ЭМУЛЯТОРОВ
--- ════════════════════════════════════════════════════════════════════
 
--- Настройки обновления
-local GITHUB_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/main/ImDeaLerV2.0.0.lua"
-local GITHUB_BACKUP_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/refs/heads/main/ImDeaLerV1.9.9.lua"
-local SCRIPT_NAME = "ImDeaLerV2.0.0.lua"
-local VERSION = "2.0.0"
-local CHECK_UPDATE = true
-local UPDATE_COOLDOWN = 1800 -- 30 минут
-
--- Функция безопасного запроса к GitHub (адаптированная для эмуляторов)
-function safeGitHubRequest(url)
-    local success, response = pcall(function()
-        return gg.makeRequest(url)
-    end)
-    
-    if success and response then
-        return response
-    end
-    
-    -- Пробуем альтернативный метод
-    return nil
-end
-
--- Функция проверки интернет-соединения для эмуляторов
-function checkInternetForEmulator()
-    print("🌐 Проверка интернета для эмулятора...")
-    
-    -- Попробуем несколько методов проверки
-    local testUrls = {
-        "https://github.com",
-        "https://www.google.com",
-        "https://raw.githubusercontent.com",
-        "http://www.gstatic.com/generate_204" -- Google сервис для проверки сети
-    }
-    
-    -- Проверяем доступность DNS
-    local dnsTest = os.execute("ping -c 1 google.com > /dev/null 2>&1")
-    if dnsTest then
-        print("✅ DNS работает")
-    end
-    
-    for _, url in ipairs(testUrls) do
-        print("Проверяем: " .. url)
-        
-        local response = safeGitHubRequest(url)
-        if response then
-            print("✅ Ответ от " .. url .. ": код " .. (response.code or "нет"))
-            if response.code == 200 or response.code == 204 then
-                return true
-            end
-        end
-    end
-    
-    -- Дополнительная проверка через Google
-    local googleResponse = safeGitHubRequest("http://www.google.com")
-    if googleResponse and (googleResponse.code == 200 or googleResponse.code == 301 or googleResponse.code == 302) then
-        return true
-    end
-    
-    -- Проверка через простой HTTP запрос
-    local testHttp = safeGitHubRequest("http://clients3.google.com/generate_204")
-    if testHttp and testHttp.code == 204 then
-        return true
-    end
-    
-    return false
-end
-
--- Функция загрузки обновления с обработкой ошибок
-function downloadUpdateWithRetry()
-    print("⬇️ Попытка загрузки обновления...")
-    
-    local maxRetries = 3
-    local retryDelay = 2000 -- 2 секунды между попытками
-    
-    for attempt = 1, maxRetries do
-        print("Попытка " .. attempt .. " из " .. maxRetries)
-        
-        -- Пробуем основную ссылку
-        local response = safeGitHubRequest(GITHUB_URL)
-        
-        if response then
-            print("Код ответа: " .. (response.code or "нет"))
-            
-            if response.code == 200 and response.content and #response.content > 1000 then
-                print("✅ Успешная загрузка, размер: " .. #response.content .. " байт")
-                return response.content
-            elseif response.code == 403 or response.code == 429 then
-                print("⚠️ Rate limit, ждем 5 секунд...")
-                gg.sleep(5000)
-                response = safeGitHubRequest(GITHUB_BACKUP_URL)
-                if response and response.code == 200 then
-                    return response.content
-                end
-            end
-        end
-        
-        -- Ждем перед следующей попыткой
-        if attempt < maxRetries then
-            print("⏳ Ожидание " .. (retryDelay/1000) .. " секунд...")
-            gg.sleep(retryDelay)
-        end
-    end
-    
-    return nil
-end
-
--- Улучшенная функция проверки обновлений
-function checkForUpdatesEmulator()
-    if not CHECK_UPDATE then
-        return
-    end
-    
-    -- Проверяем интернет
-    if not checkInternetForEmulator() then
-        print("❌ Нет интернета на эмуляторе")
-        gg.toast("❌ Нет интернет соединения")
-        return
-    end
-    
-    print("🔍 Проверка обновлений для эмулятора...")
-    gg.toast("🔍 Проверка обновлений...")
-    
-    local updateContent = downloadUpdateWithRetry()
-    
-    if not updateContent then
-        print("❌ Не удалось загрузить обновление")
-        gg.toast("❌ Ошибка загрузки")
-        return
-    end
-    
-    -- Ищем версию в загруженном контенте
-    local remoteVersion = nil
-    local versionPatterns = {
-        "local%s+VERSION%s*=%s*[\"']([%d%.]+)[\"']",
-        "VERSION%s*=%s*[\"']([%d%.]+)[\"']",
-        "[\"']([%d%.]+)[\"']%s*%-%s*версия",
-        "версия%s+([%d%.]+)"
-    }
-    
-    for _, pattern in ipairs(versionPatterns) do
-        remoteVersion = updateContent:match(pattern)
-        if remoteVersion then
-            print("✅ Найдена удаленная версия: " .. remoteVersion)
-            break
-        end
-    end
-    
-    if not remoteVersion then
-        print("⚠️ Версия не найдена в файле")
-        return
-    end
-    
-    -- Сравниваем версии
-    local currentParts = {}
-    local remoteParts = {}
-    
-    for part in VERSION:gmatch("%d+") do
-        table.insert(currentParts, tonumber(part))
-    end
-    
-    for part in remoteVersion:gmatch("%d+") do
-        table.insert(remoteParts, tonumber(part))
-    end
-    
-    -- Сравнение версий
-    local isNewer = false
-    for i = 1, math.max(#currentParts, #remoteParts) do
-        local current = currentParts[i] or 0
-        local remote = remoteParts[i] or 0
-        
-        if remote > current then
-            isNewer = true
-            break
-        elseif remote < current then
-            break
-        end
-    end
-    
-    if isNewer then
-        print("🎉 Доступно обновление " .. remoteVersion)
-        gg.toast("🎉 Обновление v" .. remoteVersion .. " доступно!")
-        showUpdateDialog(remoteVersion, updateContent)
-    else
-        print("✅ Актуальная версия")
-        gg.toast("✅ Актуальная версия")
-    end
-end
-
--- Диалог обновления
-function showUpdateDialog(newVersion, updateContent)
-    gg.setVisible(false)
-    gg.sleep(100)
-    
-    -- Извлекаем changelog
-    local changelog = "Изменения в версии " .. newVersion .. ":\n\n"
-    local logText = updateContent:match("--%s*[Ии]зменения[%s%S]-%-%-%-")
-    or updateContent:match("--%s*CHANGELOG[%s%S]-%-%-%-")
-    or "• Улучшена стабильность\n• Исправлены ошибки\n• Новые функции"
-    
-    changelog = changelog .. logText
-    
-    local choice = gg.choice({
-        "✅ Обновить сейчас (v" .. newVersion .. ")",
-        "📋 Показать изменения",
-        "⏰ Напомнить позже",
-        "🚫 Пропустить это обновление"
-    }, nil, "🎉 ОБНОВЛЕНИЕ ДОСТУПНО!\n\n" ..
-           "Текущая: v" .. VERSION .. "\n" ..
-           "Новая: v" .. newVersion .. "\n\n" ..
-           "Выберите действие:")
-    
-    if choice == 1 then
-        installUpdate(updateContent, newVersion)
-    elseif choice == 2 then
-        showChangelogDialog(newVersion, updateContent, changelog)
-    elseif choice == 3 then
-        gg.toast("⏰ Напоминание через 2 часа")
-    elseif choice == 4 then
-        gg.toast("🚫 Обновление пропущено")
-    end
-end
-
--- Функция установки обновления
-function installUpdate(content, newVersion)
-    print("⚙️ Установка обновления...")
-    
-    -- Путь к скрипту
-    local scriptDir = gg.EXT_STORAGE .. "/GameGuardian/scripts/"
-    local scriptPath = scriptDir .. SCRIPT_NAME
-    
-    -- Создаем backup
-    local backupPath = scriptDir .. "backups/ImDeaLer_v" .. VERSION .. "_backup.lua"
-    os.execute("mkdir -p \"" .. scriptDir .. "backups/\"")
-    
-    -- Копируем текущий скрипт в backup
-    local currentFile = io.open(scriptPath, "r")
-    if currentFile then
-        local currentContent = currentFile:read("*a")
-        currentFile:close()
-        
-        local backupFile = io.open(backupPath, "w")
-        if backupFile then
-            backupFile:write(currentContent)
-            backupFile:close()
-            print("💾 Backup создан: " .. backupPath)
-        end
-    end
-    
-    -- Сохраняем новую версию
-    local newFile = io.open(scriptPath, "w")
-    if newFile then
-        newFile:write(content)
-        newFile:close()
-        
-        print("✅ Обновление установлено!")
-        gg.alert("✅ ОБНОВЛЕНИЕ УСПЕШНО!\n\n" ..
-                "v" .. VERSION .. " → v" .. newVersion .. "\n\n" ..
-                "Backup сохранен в:\nbackups/ImDeaLer_v" .. VERSION .. "_backup.lua\n\n" ..
-                "Перезапустите скрипт!")
-        os.exit()
-    else
-        gg.alert("❌ Ошибка записи файла!\n" ..
-                "Проверьте права доступа.")
-    end
-end
-
--- Функция принудительной проверки
-function forceUpdateCheck()
-    print("⚡ Принудительная проверка...")
-    CHECK_UPDATE = true
-    checkForUpdatesEmulator()
-end
-
--- Функция информации о версии
-function showVersionInfoMenu()
-    local updateStatus = "✅ Актуальная"
-    if CHECK_UPDATE then
-        updateStatus = updateStatus .. " (автообновление ВКЛ)"
-    else
-        updateStatus = updateStatus .. " (автообновление ВЫКЛ)"
-    end
-    
-    local info = "📱 ImDeaLer Script\n\n" ..
-                "Версия: " .. VERSION .. "\n" ..
-                "Статус: " .. updateStatus .. "\n" ..
-                "GitHub: ImDeaLer/ImDeaLer_Script\n\n" ..
-                "Для пользователя: " .. currentUsername
-    
-    local choice = gg.choice({
-        "🔄 Проверить обновления сейчас",
-        "⚙️ Настройки обновлений",
-        "📁 Показать backup файлы",
-        "↩️ Назад"
-    }, nil, info)
-    
-    if choice == 1 then
-        forceUpdateCheck()
-    elseif choice == 2 then
-        showUpdateSettings()
-    elseif choice == 3 then
-        showBackupFiles()
-    end
-end
-
--- Настройки обновлений
-function showUpdateSettings()
-    local settings = "⚙️ НАСТРОЙКИ ОБНОВЛЕНИЙ\n\n" ..
-                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ") .. "\n" ..
-                    "Интервал: каждые " .. (UPDATE_COOLDOWN/3600) .. " часов\n\n" ..
-                    "GitHub URL:\n" .. GITHUB_URL
-    
-    local choice = gg.choice({
-        CHECK_UPDATE and "❌ Выключить автообновление" or "✅ Включить автообновление",
-        "🌐 Проверить соединение",
-        "🔗 Копировать ссылку GitHub",
-        "↩️ Назад"
-    }, nil, settings)
-    
-    if choice == 1 then
-        CHECK_UPDATE = not CHECK_UPDATE
-        gg.toast("Автообновление: " .. (CHECK_UPDATE and "ВКЛ"))
-    elseif choice == 2 then
-        if checkInternetForEmulator() then
-            gg.alert("✅ Интернет соединение работает!\n\n" ..
-                    "GitHub доступен для обновлений.")
-        else
-            gg.alert("❌ Нет интернет соединения!\n\n" ..
-                    "Проверьте настройки эмулятора:\n" ..
-                    "1. Включите интернет в эмуляторе\n" ..
-                    "2. Проверьте VPN/прокси\n" ..
-                    "3. Перезагрузите эмулятор")
-        end
-    elseif choice == 3 then
-        gg.copyText(GITHUB_URL)
-        gg.toast("✅ Ссылка скопирована")
-    end
-end
 
 
 
@@ -521,80 +181,7 @@ end
 
 
 
--- Добавляем пункт в главное меню
-function setupUpdateMenu()
-    -- Добавляем пункт обновлений в меню информации
-    local infoIndex = nil
-    for i, item in ipairs(t('mainMenu')) do
-        if item:find("информация") or item:find("information") then
-            infoIndex = i
-            break
-        end
-    end
-    
-    if infoIndex then
-        -- Меняем пункт информации
-        translations[currentLanguage].mainMenu[infoIndex] = "ℹ️ информация/обновления"
-    end
-end
 
--- Модифицируем функцию информации
-local originalInfo = info
-function info()
-    local choice = gg.choice({
-        "📱 О скрипте",
-        "🔄 Проверка обновлений",
-        "⚙️ Настройки обновлений",
-        "↩️ Назад"
-    }, nil, "ℹ️ ИНФОРМАЦИЯ И ОБНОВЛЕНИЯ")
-    
-    if choice == 1 then
-        originalInfo()
-    elseif choice == 2 then
-        forceUpdateCheck()
-    elseif choice == 3 then
-        showUpdateSettings()
-    end
-end
-
--- ════════════════════════════════════════════════════════════════════
--- 🚀 ЗАПУСК СИСТЕМЫ ОБНОВЛЕНИЯ
--- ════════════════════════════════════════════════════════════════════
-
--- Инициализация при запуске
-print("══════════════════════════════════════════════")
-print("🎮 ImDeaLer Script v" .. VERSION)
-print("👤 Для: Тебя;)")
-print("══════════════════════════════════════════════")
-
--- Настраиваем меню
-setupUpdateMenu()
-
--- Фоновая проверка обновлений (с задержкой)
-local function initUpdateSystem()
-    -- Ждем 3 секунды для загрузки основного скрипта
-    gg.sleep(3000)
-    
-    if CHECK_UPDATE then
-        print("🔍 Запуск проверки обновлений...")
-        
-        -- Проверяем в фоновом режиме
-        local function bgCheck()
-            local success, err = pcall(checkForUpdatesEmulator)
-            if not success then
-                print("⚠️ Ошибка при проверке обновлений: " .. err)
-            end
-        end
-        
-        -- Запускаем асинхронно
-        pcall(bgCheck)
-    else
-        print("🔕 Автообновление отключено")
-    end
-end
-
--- Запускаем инициализацию
-pcall(initUpdateSystem)
 
 
 -- Выбор языка / Language selection
@@ -1026,7 +613,421 @@ end
 local playerID = getPlayerID()
 
 
+-- ════════════════════════════════════════════════════════════════════
+-- 🔄 СИСТЕМА АВТООБНОВЛЕНИЯ ДЛЯ ЭМУЛЯТОРОВ
+-- ════════════════════════════════════════════════════════════════════
 
+-- Настройки обновления
+local GITHUB_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/main/ImDeaLerV2.0.0.lua"
+local GITHUB_BACKUP_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/refs/heads/main/ImDeaLerV1.9.9.lua"
+local SCRIPT_NAME = "ImDeaLerV2.0.0.lua"
+local VERSION = "2.0.0"
+local CHECK_UPDATE = true
+local UPDATE_COOLDOWN = 1800 -- 30 минут
+
+-- Функция безопасного запроса к GitHub (адаптированная для эмуляторов)
+function safeGitHubRequest(url)
+    local success, response = pcall(function()
+        return gg.makeRequest(url)
+    end)
+    
+    if success and response then
+        return response
+    end
+    
+    -- Пробуем альтернативный метод
+    return nil
+end
+
+-- Функция проверки интернет-соединения для эмуляторов
+function checkInternetForEmulator()
+    print("🌐 Проверка интернета для эмулятора...")
+    
+    -- Попробуем несколько методов проверки
+    local testUrls = {
+        "https://github.com",
+        "https://www.google.com",
+        "https://raw.githubusercontent.com",
+        "http://www.gstatic.com/generate_204" -- Google сервис для проверки сети
+    }
+    
+    -- Проверяем доступность DNS
+    local dnsTest = os.execute("ping -c 1 google.com > /dev/null 2>&1")
+    if dnsTest then
+        print("✅ DNS работает")
+    end
+    
+    for _, url in ipairs(testUrls) do
+        print("Проверяем: " .. url)
+        
+        local response = safeGitHubRequest(url)
+        if response then
+            print("✅ Ответ от " .. url .. ": код " .. (response.code or "нет"))
+            if response.code == 200 or response.code == 204 then
+                return true
+            end
+        end
+    end
+    
+    -- Дополнительная проверка через Google
+    local googleResponse = safeGitHubRequest("http://www.google.com")
+    if googleResponse and (googleResponse.code == 200 or googleResponse.code == 301 or googleResponse.code == 302) then
+        return true
+    end
+    
+    -- Проверка через простой HTTP запрос
+    local testHttp = safeGitHubRequest("http://clients3.google.com/generate_204")
+    if testHttp and testHttp.code == 204 then
+        return true
+    end
+    
+    return false
+end
+
+-- Функция загрузки обновления с обработкой ошибок
+function downloadUpdateWithRetry()
+    print("⬇️ Попытка загрузки обновления...")
+    
+    local maxRetries = 3
+    local retryDelay = 2000 -- 2 секунды между попытками
+    
+    for attempt = 1, maxRetries do
+        print("Попытка " .. attempt .. " из " .. maxRetries)
+        
+        -- Пробуем основную ссылку
+        local response = safeGitHubRequest(GITHUB_URL)
+        
+        if response then
+            print("Код ответа: " .. (response.code or "нет"))
+            
+            if response.code == 200 and response.content and #response.content > 1000 then
+                print("✅ Успешная загрузка, размер: " .. #response.content .. " байт")
+                return response.content
+            elseif response.code == 403 or response.code == 429 then
+                print("⚠️ Rate limit, ждем 5 секунд...")
+                gg.sleep(5000)
+                response = safeGitHubRequest(GITHUB_BACKUP_URL)
+                if response and response.code == 200 then
+                    return response.content
+                end
+            end
+        end
+        
+        -- Ждем перед следующей попыткой
+        if attempt < maxRetries then
+            print("⏳ Ожидание " .. (retryDelay/1000) .. " секунд...")
+            gg.sleep(retryDelay)
+        end
+    end
+    
+    return nil
+end
+
+-- Улучшенная функция проверки обновлений
+function checkForUpdatesEmulator()
+    if not CHECK_UPDATE then
+        return
+    end
+    
+    -- Проверяем интернет
+    if not checkInternetForEmulator() then
+        print("❌ Нет интернета на эмуляторе")
+        gg.toast("❌ Нет интернет соединения")
+        return
+    end
+    
+    print("🔍 Проверка обновлений для эмулятора...")
+    gg.toast("🔍 Проверка обновлений...")
+    
+    local updateContent = downloadUpdateWithRetry()
+    
+    if not updateContent then
+        print("❌ Не удалось загрузить обновление")
+        gg.toast("❌ Ошибка загрузки")
+        return
+    end
+    
+    -- Ищем версию в загруженном контенте
+    local remoteVersion = nil
+    local versionPatterns = {
+        "local%s+VERSION%s*=%s*[\"']([%d%.]+)[\"']",
+        "VERSION%s*=%s*[\"']([%d%.]+)[\"']",
+        "[\"']([%d%.]+)[\"']%s*%-%s*версия",
+        "версия%s+([%d%.]+)"
+    }
+    
+    for _, pattern in ipairs(versionPatterns) do
+        remoteVersion = updateContent:match(pattern)
+        if remoteVersion then
+            print("✅ Найдена удаленная версия: " .. remoteVersion)
+            break
+        end
+    end
+    
+    if not remoteVersion then
+        print("⚠️ Версия не найдена в файле")
+        return
+    end
+    
+    -- Сравниваем версии
+    local currentParts = {}
+    local remoteParts = {}
+    
+    for part in VERSION:gmatch("%d+") do
+        table.insert(currentParts, tonumber(part))
+    end
+    
+    for part in remoteVersion:gmatch("%d+") do
+        table.insert(remoteParts, tonumber(part))
+    end
+    
+    -- Сравнение версий
+    local isNewer = false
+    for i = 1, math.max(#currentParts, #remoteParts) do
+        local current = currentParts[i] or 0
+        local remote = remoteParts[i] or 0
+        
+        if remote > current then
+            isNewer = true
+            break
+        elseif remote < current then
+            break
+        end
+    end
+    
+    if isNewer then
+        print("🎉 Доступно обновление " .. remoteVersion)
+        gg.toast("🎉 Обновление v" .. remoteVersion .. " доступно!")
+        showUpdateDialog(remoteVersion, updateContent)
+    else
+        print("✅ Актуальная версия")
+        gg.toast("✅ Актуальная версия")
+    end
+end
+
+-- Диалог обновления
+function showUpdateDialog(newVersion, updateContent)
+    gg.setVisible(false)
+    gg.sleep(100)
+    
+    -- Извлекаем changelog
+    local changelog = "Изменения в версии " .. newVersion .. ":\n\n"
+    local logText = updateContent:match("--%s*[Ии]зменения[%s%S]-%-%-%-")
+    or updateContent:match("--%s*CHANGELOG[%s%S]-%-%-%-")
+    or "• Улучшена стабильность\n• Исправлены ошибки\n• Новые функции"
+    
+    changelog = changelog .. logText
+    
+    local choice = gg.choice({
+        "✅ Обновить сейчас (v" .. newVersion .. ")",
+        "📋 Показать изменения",
+        "⏰ Напомнить позже",
+        "🚫 Пропустить это обновление"
+    }, nil, "🎉 ОБНОВЛЕНИЕ ДОСТУПНО!\n\n" ..
+           "Текущая: v" .. VERSION .. "\n" ..
+           "Новая: v" .. newVersion .. "\n\n" ..
+           "Выберите действие:")
+    
+    if choice == 1 then
+        installUpdate(updateContent, newVersion)
+    elseif choice == 2 then
+        showChangelogDialog(newVersion, updateContent, changelog)
+    elseif choice == 3 then
+        gg.toast("⏰ Напоминание через 2 часа")
+    elseif choice == 4 then
+        gg.toast("🚫 Обновление пропущено")
+    end
+end
+
+-- Функция установки обновления
+function installUpdate(content, newVersion)
+    print("⚙️ Установка обновления...")
+    
+    -- Путь к скрипту
+    local scriptDir = gg.EXT_STORAGE .. "/GameGuardian/scripts/"
+    local scriptPath = scriptDir .. SCRIPT_NAME
+    
+    -- Создаем backup
+    local backupPath = scriptDir .. "backups/ImDeaLer_v" .. VERSION .. "_backup.lua"
+    os.execute("mkdir -p \"" .. scriptDir .. "backups/\"")
+    
+    -- Копируем текущий скрипт в backup
+    local currentFile = io.open(scriptPath, "r")
+    if currentFile then
+        local currentContent = currentFile:read("*a")
+        currentFile:close()
+        
+        local backupFile = io.open(backupPath, "w")
+        if backupFile then
+            backupFile:write(currentContent)
+            backupFile:close()
+            print("💾 Backup создан: " .. backupPath)
+        end
+    end
+    
+    -- Сохраняем новую версию
+    local newFile = io.open(scriptPath, "w")
+    if newFile then
+        newFile:write(content)
+        newFile:close()
+        
+        print("✅ Обновление установлено!")
+        gg.alert("✅ ОБНОВЛЕНИЕ УСПЕШНО!\n\n" ..
+                "v" .. VERSION .. " → v" .. newVersion .. "\n\n" ..
+                "Backup сохранен в:\nbackups/ImDeaLer_v" .. VERSION .. "_backup.lua\n\n" ..
+                "Перезапустите скрипт!")
+        os.exit()
+    else
+        gg.alert("❌ Ошибка записи файла!\n" ..
+                "Проверьте права доступа.")
+    end
+end
+
+-- Функция принудительной проверки
+function forceUpdateCheck()
+    print("⚡ Принудительная проверка...")
+    CHECK_UPDATE = true
+    checkForUpdatesEmulator()
+end
+
+-- Функция информации о версии
+function showVersionInfoMenu()
+    local updateStatus = "✅ Актуальная"
+    if CHECK_UPDATE then
+        updateStatus = updateStatus .. " (автообновление ВКЛ)"
+    else
+        updateStatus = updateStatus .. " (автообновление ВЫКЛ)"
+    end
+    
+    local info = "📱 ImDeaLer Script\n\n" ..
+                "Версия: " .. VERSION .. "\n" ..
+                "Статус: " .. updateStatus .. "\n" ..
+                "GitHub: ImDeaLer/ImDeaLer_Script\n\n" ..
+                "Для пользователя: " .. currentUsername
+    
+    local choice = gg.choice({
+        "🔄 Проверить обновления сейчас",
+        "⚙️ Настройки обновлений",
+        "📁 Показать backup файлы",
+        "↩️ Назад"
+    }, nil, info)
+    
+    if choice == 1 then
+        forceUpdateCheck()
+    elseif choice == 2 then
+        showUpdateSettings()
+    elseif choice == 3 then
+        showBackupFiles()
+    end
+end
+
+-- Настройки обновлений
+function showUpdateSettings()
+    local settings = "⚙️ НАСТРОЙКИ ОБНОВЛЕНИЙ\n\n" ..
+                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ") .. "\n" ..
+                    "Интервал: каждые " .. (UPDATE_COOLDOWN/3600) .. " часов\n\n" ..
+                    "GitHub URL:\n" .. GITHUB_URL
+    
+    local choice = gg.choice({
+        CHECK_UPDATE and "❌ Выключить автообновление" or "✅ Включить автообновление",
+        "🌐 Проверить соединение",
+        "🔗 Копировать ссылку GitHub",
+        "↩️ Назад"
+    }, nil, settings)
+    
+    if choice == 1 then
+        CHECK_UPDATE = not CHECK_UPDATE
+        gg.toast("Автообновление: " .. (CHECK_UPDATE and "ВКЛ"))
+    elseif choice == 2 then
+        if checkInternetForEmulator() then
+            gg.alert("✅ Интернет соединение работает!\n\n" ..
+                    "GitHub доступен для обновлений.")
+        else
+            gg.alert("❌ Нет интернет соединения!\n\n" ..
+                    "Проверьте настройки эмулятора:\n" ..
+                    "1. Включите интернет в эмуляторе\n" ..
+                    "2. Проверьте VPN/прокси\n" ..
+                    "3. Перезагрузите эмулятор")
+        end
+    elseif choice == 3 then
+        gg.copyText(GITHUB_URL)
+        gg.toast("✅ Ссылка скопирована")
+    end
+end
+-- Добавляем пункт в главное меню
+function setupUpdateMenu()
+    -- Добавляем пункт обновлений в меню информации
+    local infoIndex = nil
+    for i, item in ipairs(t('mainMenu')) do
+        if item:find("информация") or item:find("information") then
+            infoIndex = i
+            break
+        end
+    end
+    
+    if infoIndex then
+        -- Меняем пункт информации
+        translations[currentLanguage].mainMenu[infoIndex] = "ℹ️ информация/обновления"
+    end
+end
+
+-- Модифицируем функцию информации
+local originalInfo = info
+function info()
+    local choice = gg.choice({
+        "📱 О скрипте",
+        "🔄 Проверка обновлений",
+        "⚙️ Настройки обновлений",
+        "↩️ Назад"
+    }, nil, "ℹ️ ИНФОРМАЦИЯ И ОБНОВЛЕНИЯ")
+    
+    if choice == 1 then
+        originalInfo()
+    elseif choice == 2 then
+        forceUpdateCheck()
+    elseif choice == 3 then
+        showUpdateSettings()
+    end
+end
+
+-- ════════════════════════════════════════════════════════════════════
+-- 🚀 ЗАПУСК СИСТЕМЫ ОБНОВЛЕНИЯ
+-- ════════════════════════════════════════════════════════════════════
+
+-- Инициализация при запуске
+print("══════════════════════════════════════════════")
+print("🎮 ImDeaLer Script v" .. VERSION)
+print("👤 Для: Тебя;)")
+print("══════════════════════════════════════════════")
+
+-- Настраиваем меню
+setupUpdateMenu()
+
+-- Фоновая проверка обновлений (с задержкой)
+local function initUpdateSystem()
+    -- Ждем 3 секунды для загрузки основного скрипта
+    gg.sleep(3000)
+    
+    if CHECK_UPDATE then
+        print("🔍 Запуск проверки обновлений...")
+        
+        -- Проверяем в фоновом режиме
+        local function bgCheck()
+            local success, err = pcall(checkForUpdatesEmulator)
+            if not success then
+                print("⚠️ Ошибка при проверке обновлений: " .. err)
+            end
+        end
+        
+        -- Запускаем асинхронно
+        pcall(bgCheck)
+    else
+        print("🔕 Автообновление отключено")
+    end
+end
+
+-- Запускаем инициализацию
+pcall(initUpdateSystem)
 
 fuckerbp = false
 SkyBlockGame = false
