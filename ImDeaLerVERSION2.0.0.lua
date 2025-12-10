@@ -83,7 +83,13 @@ end
 
 -- Функция сохранения обновления
 function saveUpdate(content, version)
-    local path = gg.EXT_STORAGE .. "/GameGuardian/scripts/" .. UPDATE_FILE
+    print("💾 Сохраняю файл...")
+    
+    -- Просто сохраняем в папку Download
+    -- В GG обычно это работает без полного пути
+    local path = "Download/" .. UPDATE_FILE
+    
+    print("Пробую сохранить: " .. path)
     
     local file = io.open(path, "w")
     if file then
@@ -95,9 +101,42 @@ function saveUpdate(content, version)
         gg.alert("✅ ОБНОВЛЕНИЕ СКАЧАНО!\n\n" ..
                 "Файл: " .. UPDATE_FILE .. "\n" ..
                 "Версия: " .. version .. "\n\n" ..
-                "Переименуйте файл и запустите!")
+                "Файл находится в папке Download\n" ..
+                "на вашем устройстве.")
+        return true
     else
-        gg.alert("❌ Ошибка сохранения!")
+        -- Если не получилось - пробуем корень
+        print("❌ Не сохранилось в Download, пробую корень...")
+        local rootPath = UPDATE_FILE
+        local file2 = io.open(rootPath, "w")
+        
+        if file2 then
+            file2:write(content)
+            file2:close()
+            
+            print("✅ Сохранено в корень: " .. rootPath)
+            gg.alert("✅ Сохранено в корень устройства!\nФайл: " .. UPDATE_FILE)
+            return true
+        else
+            -- Последний вариант - папка скриптов GG
+            print("❌ Не сохранилось, пробую папку GG...")
+            local ggPath = gg.EXT_STORAGE .. "/GameGuardian/scripts/" .. UPDATE_FILE
+            local file3 = io.open(ggPath, "w")
+            
+            if file3 then
+                file3:write(content)
+                file3:close()
+                
+                print("✅ Сохранено в папку GG: " .. ggPath)
+                gg.alert("✅ Сохранено в папке GG скриптов!\n" .. ggPath)
+                return true
+            else
+                print("❌ Вообще не могу сохранить файл!")
+                gg.alert("❌ НЕ УДАЛОСЬ СОХРАНИТЬ ФАЙЛ!\n\n" ..
+                        "Проверьте права на запись на устройстве.")
+                return false
+            end
+        end
     end
 end
 
