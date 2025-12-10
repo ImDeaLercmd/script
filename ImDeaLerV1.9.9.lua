@@ -309,7 +309,7 @@ end
 -- Настройки обновлений
 function showUpdateSettings()
     local settings = "⚙️ НАСТРОЙКИ ОБНОВЛЕНИЙ\n\n" ..
-                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ" : "ВЫКЛ") .. "\n" ..
+                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ") .. "\n" ..
                     "Интервал: каждые " .. (UPDATE_COOLDOWN/3600) .. " часов\n\n" ..
                     "GitHub URL:\n" .. GITHUB_URL
     

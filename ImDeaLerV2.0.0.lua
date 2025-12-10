@@ -8,7 +8,7 @@ local GITHUB_BACKUP_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/
 local SCRIPT_NAME = "ImDeaLerV2.0.0.lua"
 local VERSION = "2.0.0"
 local CHECK_UPDATE = true
-local UPDATE_COOLDOWN = 7200 -- 2 часа
+local UPDATE_COOLDOWN = 1800 -- 30 минут
 
 -- Функция безопасного запроса к GitHub (адаптированная для эмуляторов)
 function safeGitHubRequest(url)
@@ -309,7 +309,7 @@ end
 -- Настройки обновлений
 function showUpdateSettings()
     local settings = "⚙️ НАСТРОЙКИ ОБНОВЛЕНИЙ\n\n" ..
-                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ" : "ВЫКЛ") .. "\n" ..
+                    "Автообновление: " .. (CHECK_UPDATE and "ВКЛ") .. "\n" ..
                     "Интервал: каждые " .. (UPDATE_COOLDOWN/3600) .. " часов\n\n" ..
                     "GitHub URL:\n" .. GITHUB_URL
     
