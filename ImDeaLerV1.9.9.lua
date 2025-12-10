@@ -340,80 +340,7 @@ function showUpdateSettings()
     end
 end
 
--- Добавляем пункт в главное меню
-function setupUpdateMenu()
-    -- Добавляем пункт обновлений в меню информации
-    local infoIndex = nil
-    for i, item in ipairs(t('mainMenu')) do
-        if item:find("информация") or item:find("information") then
-            infoIndex = i
-            break
-        end
-    end
-    
-    if infoIndex then
-        -- Меняем пункт информации
-        translations[currentLanguage].mainMenu[infoIndex] = "ℹ️ информация/обновления"
-    end
-end
 
--- Модифицируем функцию информации
-local originalInfo = info
-function info()
-    local choice = gg.choice({
-        "📱 О скрипте",
-        "🔄 Проверка обновлений",
-        "⚙️ Настройки обновлений",
-        "↩️ Назад"
-    }, nil, "ℹ️ ИНФОРМАЦИЯ И ОБНОВЛЕНИЯ")
-    
-    if choice == 1 then
-        originalInfo()
-    elseif choice == 2 then
-        forceUpdateCheck()
-    elseif choice == 3 then
-        showUpdateSettings()
-    end
-end
-
--- ════════════════════════════════════════════════════════════════════
--- 🚀 ЗАПУСК СИСТЕМЫ ОБНОВЛЕНИЯ
--- ════════════════════════════════════════════════════════════════════
-
--- Инициализация при запуске
-print("══════════════════════════════════════════════")
-print("🎮 ImDeaLer Script v" .. VERSION)
-print("👤 Для: Тебя;)")
-print("══════════════════════════════════════════════")
-
--- Настраиваем меню
-setupUpdateMenu()
-
--- Фоновая проверка обновлений (с задержкой)
-local function initUpdateSystem()
-    -- Ждем 3 секунды для загрузки основного скрипта
-    gg.sleep(3000)
-    
-    if CHECK_UPDATE then
-        print("🔍 Запуск проверки обновлений...")
-        
-        -- Проверяем в фоновом режиме
-        local function bgCheck()
-            local success, err = pcall(checkForUpdatesEmulator)
-            if not success then
-                print("⚠️ Ошибка при проверке обновлений: " .. err)
-            end
-        end
-        
-        -- Запускаем асинхронно
-        pcall(bgCheck)
-    else
-        print("🔕 Автообновление отключено")
-    end
-end
-
--- Запускаем инициализацию
-pcall(initUpdateSystem)
 
 
 baseRG = gg.REGION_C_ALLOC
@@ -594,7 +521,80 @@ end
 
 
 
+-- Добавляем пункт в главное меню
+function setupUpdateMenu()
+    -- Добавляем пункт обновлений в меню информации
+    local infoIndex = nil
+    for i, item in ipairs(t('mainMenu')) do
+        if item:find("информация") or item:find("information") then
+            infoIndex = i
+            break
+        end
+    end
+    
+    if infoIndex then
+        -- Меняем пункт информации
+        translations[currentLanguage].mainMenu[infoIndex] = "ℹ️ информация/обновления"
+    end
+end
 
+-- Модифицируем функцию информации
+local originalInfo = info
+function info()
+    local choice = gg.choice({
+        "📱 О скрипте",
+        "🔄 Проверка обновлений",
+        "⚙️ Настройки обновлений",
+        "↩️ Назад"
+    }, nil, "ℹ️ ИНФОРМАЦИЯ И ОБНОВЛЕНИЯ")
+    
+    if choice == 1 then
+        originalInfo()
+    elseif choice == 2 then
+        forceUpdateCheck()
+    elseif choice == 3 then
+        showUpdateSettings()
+    end
+end
+
+-- ════════════════════════════════════════════════════════════════════
+-- 🚀 ЗАПУСК СИСТЕМЫ ОБНОВЛЕНИЯ
+-- ════════════════════════════════════════════════════════════════════
+
+-- Инициализация при запуске
+print("══════════════════════════════════════════════")
+print("🎮 ImDeaLer Script v" .. VERSION)
+print("👤 Для: Тебя;)")
+print("══════════════════════════════════════════════")
+
+-- Настраиваем меню
+setupUpdateMenu()
+
+-- Фоновая проверка обновлений (с задержкой)
+local function initUpdateSystem()
+    -- Ждем 3 секунды для загрузки основного скрипта
+    gg.sleep(3000)
+    
+    if CHECK_UPDATE then
+        print("🔍 Запуск проверки обновлений...")
+        
+        -- Проверяем в фоновом режиме
+        local function bgCheck()
+            local success, err = pcall(checkForUpdatesEmulator)
+            if not success then
+                print("⚠️ Ошибка при проверке обновлений: " .. err)
+            end
+        end
+        
+        -- Запускаем асинхронно
+        pcall(bgCheck)
+    else
+        print("🔕 Автообновление отключено")
+    end
+end
+
+-- Запускаем инициализацию
+pcall(initUpdateSystem)
 
 
 -- Выбор языка / Language selection
