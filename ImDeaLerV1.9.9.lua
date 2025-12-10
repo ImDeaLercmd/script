@@ -322,7 +322,7 @@ function showUpdateSettings()
     
     if choice == 1 then
         CHECK_UPDATE = not CHECK_UPDATE
-        gg.toast("Автообновление: " .. (CHECK_UPDATE and "ВКЛ" : "ВЫКЛ"))
+        gg.toast("Автообновление: " .. (CHECK_UPDATE and "ВКЛ"))
     elseif choice == 2 then
         if checkInternetForEmulator() then
             gg.alert("✅ Интернет соединение работает!\n\n" ..
