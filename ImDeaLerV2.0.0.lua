@@ -1,5 +1,5 @@
 -- Настройки обновления
-local GITHUB_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/ImDeaLer.lua"
+local GITHUB_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/main/ImDeaLerV2.0.0.lua"
 local SCRIPT_NAME = "ImDeaLerV2.0.0.lua"
 local VERSION = "2.0.0"
 local CHECK_UPDATE = true -- Включить/выключить проверку обновлений
@@ -381,32 +381,7 @@ end
 
 baseRG = gg.REGION_C_ALLOC
 
--- Добавляем запуск проверки обновлений в начало
-print("══════════════════════════════════════════════")
-print("🎮 ImDeaLer Script v" .. VERSION)
-print("👤 Для пользователя: " .. currentUsername)
-print("🆔 Player ID: " .. playerID)
-print("══════════════════════════════════════════════")
 
--- Проверяем обновления в фоновом режиме
-if CHECK_UPDATE then
-    -- Быстрая проверка в фоне
-    gg.toast("🔍 Проверка обновлений...")
-    
-    -- Запускаем проверку с задержкой, чтобы не мешать инициализации
-    gg.sleep(1000)
-    
-    local function backgroundUpdateCheck()
-        if checkInternet() then
-            checkForUpdates()
-        else
-            print("⚠️ Нет интернета, пропускаем проверку обновлений")
-        end
-    end
-    
-    -- Запускаем в отдельном потоке (симуляция)
-    pcall(backgroundUpdateCheck)
-end
 
 local _={}
 _[1]="00DB6D746429" -- я
@@ -581,7 +556,32 @@ end
 
 
 
+-- Добавляем запуск проверки обновлений в начало
+print("══════════════════════════════════════════════")
+print("🎮 ImDeaLer Script v" .. VERSION)
+print("👤 Для пользователя: " .. currentUsername)
+print("🆔 Player ID: " .. playerID)
+print("══════════════════════════════════════════════")
 
+-- Проверяем обновления в фоновом режиме
+if CHECK_UPDATE then
+    -- Быстрая проверка в фоне
+    gg.toast("🔍 Проверка обновлений...")
+    
+    -- Запускаем проверку с задержкой, чтобы не мешать инициализации
+    gg.sleep(1000)
+    
+    local function backgroundUpdateCheck()
+        if checkInternet() then
+            checkForUpdates()
+        else
+            print("⚠️ Нет интернета, пропускаем проверку обновлений")
+        end
+    end
+    
+    -- Запускаем в отдельном потоке (симуляция)
+    pcall(backgroundUpdateCheck)
+end
 
 
 
