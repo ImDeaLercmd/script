@@ -5,10 +5,10 @@
 -- Настройки обновления
 local GITHUB_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/main/ImDeaLerV2.0.0.lua"
 local GITHUB_BACKUP_URL = "https://raw.githubusercontent.com/ImDeaLercmd/script/refs/heads/main/ImDeaLerV1.9.9.lua"
-local SCRIPT_NAME = "ImDeaLerV2.0.0.lua"
-local VERSION = "2.0.0"
+local SCRIPT_NAME = "ImDeaLerV1.9.9.lua"
+local VERSION = "1.9.9"
 local CHECK_UPDATE = true
-local UPDATE_COOLDOWN = 7200 -- 2 часа
+local UPDATE_COOLDOWN = 1800 -- 30 минут
 
 -- Функция безопасного запроса к GitHub (адаптированная для эмуляторов)
 function safeGitHubRequest(url)
